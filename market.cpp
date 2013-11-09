@@ -215,11 +215,17 @@ void market_maker::company_group::process_stock(buy_or_sell a, int t, string c,
 		}
 	}
 	
+	// At this point, we should have matched our current_stock with all 
+	// possible trades.
+	
 	// IOC ORDERS
 	if(current_stock.duration == 0) return;
 	
 	if(current_stock.quantity > 0){
 		//INSERT CURRENT_STOCK INTO OFFER_LIST
+		//..i think?...(need comp)
+		if(a == BUY){
+			buy_offers.insert(std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock);
 	}
 }
 
