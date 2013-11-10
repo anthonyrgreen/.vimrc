@@ -11,7 +11,7 @@ using std::string;
 
 class market_maker{
 	public:
-	market_maker() : current_timestamp(0), commission(0) {};
+	market_maker() : current_id(0), current_timestamp(0), commission(0) {};
 	
 	// Each one of these structures will hold one particular type of equity, in a
 	// vector of "stocks"
@@ -19,10 +19,11 @@ class market_maker{
 		public:
 		string equity_symbol;
 		struct stock{
-			stock(unsigned int t, string c, 
+			stock(unsigned int id, unsigned int t, string c, 
 						unsigned int p, unsigned int q, int d) : 
-						time(t), client(c), action(a), 
+						ID(id), time(t), client(c), action(a), 
 						price(p), quantity(q), duration(d) {};
+			unsigned int ID;
 			unsigned int time;
 			string client;
 			unsigned int price;
@@ -30,8 +31,28 @@ class market_maker{
 			int duration;
 		};
 
-		
 		public:
+		// Comparators
+		struct sell_comp{
+			bool operator()(const stock& lhs, const stock& rhs) const{
+				if(lhs.price < rhs.price) return true;
+				else if(lhs.price > rhs.price) return false;
+				else if(lhs.id < rhs.id) return true;
+				else if(lhs.id > rhs.id) return false;
+				else return false; // Should never be hit.
+			}
+		};
+		struct buy_comp{
+			bool operator()(const stock& lhs, const stock& rhs) const{
+				if(lhs.price > rhs.price) return true;
+				else if(lhs.price < rhs.price) return false;
+				else if(lhs.id < rhs.id) return true;
+				else if(lhs.id > rhs.id) return false;
+				else return false; // Should never be hit.		
+			}
+		};
+		
+		// THE LIST OF STOCKS 
 		// Shall always be sorted lowest->greatest by stock price
 		std::deque<company_group::stock> sell_offers;
 		// Shall always be sorted greatest->lowest, by stock price
@@ -39,15 +60,16 @@ class market_maker{
 		std::vector<stock> stocks_traded;
 
 		void clear_stocks(int current_timestamp);
-		void process_stock(buy_or_sell a, int t, string c, int p, int q, int d);
+		void process_stock(buy_or_sell a, int id, int t, string c, int p, int q, int d);
 
 		company_group(string sym) : equity_symbol(sym) {};
 		company_group() {std::cout << "DEFAULT CONSTRUCTOR REACHED: YOU HAVE AN ERROR\n";};
 	};
 	
+	// Comparator
 	struct string_comp{
-		bool operator()(const string& rhs, const string& lhs) const{
-			return rhs.compare(lhs) < 0;
+		bool operator()(const string& lhs, const string& rhs) const{
+			return lhs.compare(rhs) < 0;
 		}
 	};
 
@@ -63,6 +85,7 @@ class market_maker{
 	bool get_input();
 	void update_time(int new_timestamp);
 	int current_timestamp;
+	unsigned int current_id;
 };
 
 // Process a line of input - returns false if we're of output, true otherwise
@@ -145,9 +168,9 @@ bool market_maker::get_input(){
 		placed_orders.insert(std::pair<string, company_group>(e, company_group(e)));
 	
 	// Hand the reigns over to that stock processor, yo
-	placed_orders[e].process_stock(action, timestamp, cost, 
+	placed_orders[e].process_stock(action, current_id, timestamp, cost, 
 																 price, quantity, duration);
-
+	current_id++;
 	return true;
 }
 
@@ -178,9 +201,9 @@ void market_maker::company_group::clear_stocks(int current_timestamp){
 }
 
 // The workhorse
-void market_maker::company_group::process_stock(buy_or_sell a, int t, string c,
+void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, string c,
 																								int p, int q, int d){
-	stock current_stock = stock(t, c, p, q, d);
+	stock current_stock = stock(id, t, c, p, q, d);
 	std::deque<stock>& offer_list;
 
 	if(a == BUY) offer_list = &sell_offers;
@@ -225,8 +248,12 @@ void market_maker::company_group::process_stock(buy_or_sell a, int t, string c,
 		//INSERT CURRENT_STOCK INTO OFFER_LIST
 		//..i think?...(need comp)
 		if(a == BUY){
-			buy_offers.insert(std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock);
-	}
+			int index = std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock, buy_comp);
+			buy_offers.insert(index, current_stock);
+		}
+		else{
+			int index = std::lower_bound(sell_offers.begin(), sell_offers.end(), current_stock, sell_comp);
+			sell_offers.insert(index, current_stock);
 }
 
 int main(){
