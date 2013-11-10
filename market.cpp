@@ -228,6 +228,7 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 		
 		// If we're going to clear out the outstanding offer in the trade
 		if(current_stock.quantity >= trade.quantity){
+std::cout << "Connecting " 
 			commission += (trade.quantity*trade.price)/100;
 			commission += (trade.quantity*trade.price)/100;
 			current_stock.quantity -= trade.quantity;
@@ -254,12 +255,23 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 		//INSERT CURRENT_STOCK INTO OFFER_LIST
 		//..i think?...(need comp)
 		if(a == BUY){
-			int index = std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock, BUY_COMP);
-			buy_offers.insert(buy_offers.begin() + index, current_stock);
+//			auto index = std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock, buy_comp());
+			auto index = buy_offers.begin();
+			while(index != buy_offers.end()){
+				if(BUY_COMP(current_stock, *index)) break;
+				index++;
+			}
+			buy_offers.insert(index, current_stock);
 		}
 		else{
-			int index = std::lower_bound(sell_offers.begin(), sell_offers.end(), current_stock, SELL_COMP);
-			sell_offers.insert(sell_offers.begin() + index, current_stock);
+//			auto index = std::lower_bound(sell_offers.begin(), sell_offers.end(), current_stock, sell_comp);
+			auto index = sell_offers.begin();
+			while(index != buy_offers.end()){
+				if(SELL_COMP(current_stock, *index)) break;
+				index++;
+			}
+		
+			sell_offers.insert(index, current_stock);
 		}
 	}
 }
