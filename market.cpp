@@ -1,4 +1,5 @@
 #include <iostream>
+#include <deque>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -11,7 +12,7 @@ using std::string;
 
 class market_maker{
 	public:
-	market_maker() : current_id(0), current_timestamp(0), commission(0) {};
+	market_maker() : current_id(0), current_timestamp(0) {};
 	
 	// Each one of these structures will hold one particular type of equity, in a
 	// vector of "stocks"
@@ -20,12 +21,13 @@ class market_maker{
 		string equity_symbol;
 		struct stock{
 			stock(unsigned int id, unsigned int t, string c, 
-						unsigned int p, unsigned int q, int d) : 
-						ID(id), time(t), client(c), action(a), 
+						 unsigned int p, unsigned int q, int d) : 
+						ID(id), time(t), client(c), 
 						price(p), quantity(q), duration(d) {};
 			unsigned int ID;
 			unsigned int time;
 			string client;
+//			buy_or_sell action;
 			unsigned int price;
 			unsigned int quantity;
 			int duration;
@@ -37,20 +39,20 @@ class market_maker{
 			bool operator()(const stock& lhs, const stock& rhs) const{
 				if(lhs.price < rhs.price) return true;
 				else if(lhs.price > rhs.price) return false;
-				else if(lhs.id < rhs.id) return true;
-				else if(lhs.id > rhs.id) return false;
+				else if(lhs.ID < rhs.ID) return true;
+				else if(lhs.ID > rhs.ID) return false;
 				else return false; // Should never be hit.
 			}
-		};
+		} SELL_COMP;
 		struct buy_comp{
 			bool operator()(const stock& lhs, const stock& rhs) const{
 				if(lhs.price > rhs.price) return true;
 				else if(lhs.price < rhs.price) return false;
-				else if(lhs.id < rhs.id) return true;
-				else if(lhs.id > rhs.id) return false;
+				else if(lhs.ID < rhs.ID) return true;
+				else if(lhs.ID > rhs.ID) return false;
 				else return false; // Should never be hit.		
 			}
-		};
+		} BUY_COMP;
 		
 		// THE LIST OF STOCKS 
 		// Shall always be sorted lowest->greatest by stock price
@@ -81,12 +83,14 @@ class market_maker{
 	void print_median(){}; // NOT YET IMPLEMENTED
 	void print_midpoint(){}; // NOT YET IMPLEMENTED
 	
-	unsigned int commission;
+	static unsigned int commission;
 	bool get_input();
 	void update_time(int new_timestamp);
 	int current_timestamp;
 	unsigned int current_id;
 };
+
+unsigned int market_maker::commission = 0;
 
 // Process a line of input - returns false if we're of output, true otherwise
 // (or exits)
@@ -168,7 +172,7 @@ bool market_maker::get_input(){
 		placed_orders.insert(std::pair<string, company_group>(e, company_group(e)));
 	
 	// Hand the reigns over to that stock processor, yo
-	placed_orders[e].process_stock(action, current_id, timestamp, cost, 
+	placed_orders[e].process_stock(action, current_id, timestamp, client_name, 
 																 price, quantity, duration);
 	current_id++;
 	return true;
@@ -185,32 +189,34 @@ void market_maker::update_time(int new_timestamp){
 
 	// Clear stocks	
 	for(auto it = placed_orders.begin(); it != placed_orders.end(); it++)
-		it->clear_stocks(current_timestamp);
+		it->second.clear_stocks(current_timestamp);
 }
 
 // Goes through and checks the duration of each order, deleting as necessary
 void market_maker::company_group::clear_stocks(int current_timestamp){
-	for(int i = 0; i < buy_offers.size(); it++)
-		if(buy_offers[i] != -1 
+	for(int i = 0; i < buy_offers.size(); i++)
+		if(buy_offers[i].duration != -1 
 			 && buy_offers[i].time + buy_offers[i].duration <= current_timestamp)
-			buy_offers.erase(buy_offers.front() + i);
-	for(int i = 0; i < sell_offers.size(); it++)
-		if(sell_offers[i] != -1 
+			buy_offers.erase(buy_offers.begin() + i);
+	for(int i = 0; i < sell_offers.size(); i++)
+		if(sell_offers[i].duration != -1 
 			 && sell_offers[i].time + sell_offers[i].duration <= current_timestamp)
-			sell_offers.erase(sell_offers.front() + i);
+			sell_offers.erase(sell_offers.begin() + i);
 }
 
 // The workhorse
 void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, string c,
 																								int p, int q, int d){
 	stock current_stock = stock(id, t, c, p, q, d);
-	std::deque<stock>& offer_list;
-
-	if(a == BUY) offer_list = &sell_offers;
-	else offer_list = &buy_offers;
-
 	
-	while(!offer_list.empty() && currrent_stock.quantity > 0){
+	std::deque<stock>* offer_list_dummy_pointer = 0;
+
+	if(a == BUY) offer_list_dummy_pointer = &sell_offers;
+	else offer_list_dummy_pointer = &buy_offers;
+	
+	std::deque<stock>& offer_list = *offer_list_dummy_pointer;
+	
+	while(!offer_list.empty() && current_stock.quantity > 0){
 		// If we're looking to buy/sell more than (slash as much as) they want 
 		// to sell/buy
 		stock& trade = offer_list.front();
@@ -248,12 +254,14 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 		//INSERT CURRENT_STOCK INTO OFFER_LIST
 		//..i think?...(need comp)
 		if(a == BUY){
-			int index = std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock, buy_comp);
-			buy_offers.insert(index, current_stock);
+			int index = std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock, BUY_COMP);
+			buy_offers.insert(buy_offers.begin() + index, current_stock);
 		}
 		else{
-			int index = std::lower_bound(sell_offers.begin(), sell_offers.end(), current_stock, sell_comp);
-			sell_offers.insert(index, current_stock);
+			int index = std::lower_bound(sell_offers.begin(), sell_offers.end(), current_stock, SELL_COMP);
+			sell_offers.insert(sell_offers.begin() + index, current_stock);
+		}
+	}
 }
 
 int main(){
