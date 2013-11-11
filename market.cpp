@@ -95,6 +95,7 @@ unsigned int market_maker::commission = 0;
 // Process a line of input - returns false if we're of output, true otherwise
 // (or exits)
 bool market_maker::get_input(){
+//std::cout << "...in get_input()...\n";
 	int timestamp, price, quantity, duration;
 	string client_name, equity_symbol;
 	buy_or_sell action;
@@ -104,21 +105,31 @@ bool market_maker::get_input(){
 
 	if(std::cin.eof()) return false;
 
+//std::cout << "...starting read...\n";
+
 	// Get timestamp
 	std::cin >> dummy_input;
 	if(std::cin.eof()) return false;
 	for(int i = 0; i < dummy_input.size(); i++)
-		if(!std::isdigit(dummy_input[i])) exit(1);
+		if(!std::isdigit(dummy_input[i])){
+//std::cout << "NOT A DIGIT: char[" << i << "] = " << dummy_input[i] << std::endl;
+			 exit(1);
+		}
 	timestamp = std::stoi(dummy_input);
 	if(timestamp < current_timestamp) exit(1);
 	update_time(timestamp); // NOT YET IMPLEMENTED
+//std::cout << "...got timestamp...\n";
 	
 	// Get client_name
 	std::cin >> dummy_input;
 	if(std::cin.eof()) exit(1);
 	for(int i = 0; i < dummy_input.size(); i++)
-		if(!(std::isalnum(dummy_input[i]) || dummy_input[i] == '_')) exit(1);
+		if(!(std::isalnum(dummy_input[i]) || dummy_input[i] == '_')){
+//std::cout << "NOT ALNUM: char[" << i << "] = " << dummy_input[i] << std::endl;
+			exit(1);
+		}
 	client_name = dummy_input;
+//std::cout << "...got clientname...\n";
 
 	// Get buy_or_sell
 	std::cin >> dummy_input;
@@ -129,6 +140,7 @@ bool market_maker::get_input(){
 		action = SELL;
 	else
 		exit(1);
+//std::cout << "...got buy/sell...\n";
 
 	// Get equity_symbol
 	std::cin >> dummy_input;
@@ -139,6 +151,7 @@ bool market_maker::get_input(){
 				|| dummy_input[i] == '.')) 
 			exit(1);
 	equity_symbol = dummy_input;
+//std::cout << "...got equity symbol...\n";
 	
 	// Get price
 	std::cin >> dummy_symbol;
@@ -149,6 +162,7 @@ bool market_maker::get_input(){
 	for(int i = 0; i < dummy_input.size(); i++)
 		if(!std::isdigit(dummy_input[i])) exit(1);
 	price = std::stoi(dummy_input);
+//std::cout << "...got price...\n";
 	
 	// Get quantity
 	std::cin >> dummy_symbol;
@@ -159,13 +173,19 @@ bool market_maker::get_input(){
 	for(int i = 0; i < dummy_input.size(); i++)
 		if(!std::isdigit(dummy_input[i])) exit(1);
 	quantity = std::stoi(dummy_input);
+//std::cout << "...got quantity...\n";
 
 	// Get duration
 	std::cin >> dummy_input;
 	if(std::cin.eof()) exit(1);
 	for(int i = 0; i < dummy_input.size(); i++)
-		if(!std::isdigit(dummy_input[i])) exit(1);
+		if(!std::isdigit(dummy_input[i])
+			 && !(i == 0 && dummy_input[i] == '-')){
+//std::cout << "REACHED A NON-DIGIT\n";
+			 exit(1);
+		}
 	duration = std::stoi(dummy_input);
+//std::cout << duration << std::endl;
 
 	string e = equity_symbol;
 	if(placed_orders.find(e) == placed_orders.end())
