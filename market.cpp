@@ -207,6 +207,7 @@ void market_maker::company_group::clear_stocks(int current_timestamp){
 // The workhorse
 void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, string c,
 																								int p, int q, int d){
+//std::cout << "--IN process_stock--\n";
 	stock current_stock = stock(id, t, c, p, q, d);
 	
 	std::deque<stock>* offer_list_dummy_pointer = 0;
@@ -215,30 +216,56 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 	else offer_list_dummy_pointer = &buy_offers;
 	
 	std::deque<stock>& offer_list = *offer_list_dummy_pointer;
-	
+
+//if(offer_list.empty()) std::cout << "offer_list empty\n";
+//std::cout << "current_stock quantity = " << current_stock.quantity << std::endl;
+//std::cout << "...just before while loop...\n";
 	while(!offer_list.empty() && current_stock.quantity > 0){
+//std::cout << "...in while loop...\n";
 		// If we're looking to buy/sell more than (slash as much as) they want 
 		// to sell/buy
 		stock& trade = offer_list.front();
 		
-		if(a == BUY)
-			if(trade.price > current_stock.price) break;
-		else
-			if(trade.price < current_stock.price) break;
+		if(a == BUY){
+			if(trade.price > current_stock.price){
+std::cout << "BUYING:\ncurrent_stock.price:\t" << current_stock.price << std::endl;
+std::cout << "trade.price\t" << trade.price << std::endl;
+std::cout << "breaking.\n";
+				 break;
+			}
+		}
+		else{
+			if(trade.price < current_stock.price){
+std::cout << "SELLING:\ncurrent_stock.price:\t" << current_stock.price << std::endl;
+std::cout << "trade.price\t" << trade.price << std::endl;
+std::cout << "breaking.\n";
+				break;
+			}
+		}
+
+std::cout << "Client " << current_stock.client;
+if(a == BUY) std::cout << " buying ";
+else std::cout << " selling ";
 		
 		// If we're going to clear out the outstanding offer in the trade
 		if(current_stock.quantity >= trade.quantity){
-std::cout << "Connecting " 
 			commission += (trade.quantity*trade.price)/100;
 			commission += (trade.quantity*trade.price)/100;
+std::cout << trade.quantity << " shares of " << equity_symbol << " to " << trade.client << " @ $";
+std::cout << trade.price << "/share for a total commission of $" << 2*((int)(trade.quantity*trade.price)/100);
+std::cout << std::endl;
 			current_stock.quantity -= trade.quantity;
 			stocks_traded.push_back(trade);
 			offer_list.pop_front();
 		}
 		// Or, if we're going to be cleared out by the trade
 		else{
-			commission += (trade.quantity*current_stock.quantity)/100;
-			commission +=	(trade.quantity*current_stock.quantity)/100;
+			commission += (trade.price*current_stock.quantity)/100;
+			commission +=	(trade.price*current_stock.quantity)/100;
+std::cout << current_stock.quantity << " shares of " << equity_symbol << " to " << trade.client << " @ $";
+std::cout << trade.price << "/share for a total commission of $" << 
+					2*((int)(current_stock.quantity*trade.price)/100);
+std::cout << std::endl;
 			trade.quantity -= current_stock.quantity;
 			stocks_traded.push_back(current_stock);
 			current_stock.quantity = 0;
@@ -266,7 +293,7 @@ std::cout << "Connecting "
 		else{
 //			auto index = std::lower_bound(sell_offers.begin(), sell_offers.end(), current_stock, sell_comp);
 			auto index = sell_offers.begin();
-			while(index != buy_offers.end()){
+			while(index != sell_offers.end()){
 				if(SELL_COMP(current_stock, *index)) break;
 				index++;
 			}
