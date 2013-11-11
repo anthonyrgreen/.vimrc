@@ -12,7 +12,6 @@ using std::string;
 
 class market_maker{
 	public:
-	market_maker() : current_id(0), current_timestamp(0) {};
 	
 	// Each one of these structures will hold one particular type of equity, in a
 	// vector of "stocks"
@@ -62,9 +61,11 @@ class market_maker{
 		std::vector<stock> stocks_traded;
 
 		void clear_stocks(int current_timestamp);
-		void process_stock(buy_or_sell a, int id, int t, string c, int p, int q, int d);
+		void process_stock(buy_or_sell a, int id, int t, 
+											 string c, int p, int q, int d);
 
 		company_group(string sym) : equity_symbol(sym) {};
+		// REMOVE BEFORE TURNING IN
 		company_group() {std::cout << "DEFAULT CONSTRUCTOR REACHED: YOU HAVE AN ERROR\n";};
 	};
 	
@@ -80,6 +81,8 @@ class market_maker{
 	
 	// Flags
 	bool median_flag, midpoint_flag;
+	static bool verbose_flag;
+
 	void print_median(){}; // NOT YET IMPLEMENTED
 	void print_midpoint(){}; // NOT YET IMPLEMENTED
 	
@@ -91,11 +94,15 @@ class market_maker{
 };
 
 unsigned int market_maker::commission = 0;
+bool market_maker::verbose_flag = false;
+
+market_maker::market_maker() : current_id(0), current_timestamp(0){
+	market_maker::verbose_flag = true; 
+};
 
 // Process a line of input - returns false if we're of output, true otherwise
 // (or exits)
 bool market_maker::get_input(){
-//std::cout << "...in get_input()...\n";
 	int timestamp, price, quantity, duration;
 	string client_name, equity_symbol;
 	buy_or_sell action;
@@ -105,31 +112,23 @@ bool market_maker::get_input(){
 
 	if(std::cin.eof()) return false;
 
-//std::cout << "...starting read...\n";
-
 	// Get timestamp
 	std::cin >> dummy_input;
 	if(std::cin.eof()) return false;
 	for(int i = 0; i < dummy_input.size(); i++)
-		if(!std::isdigit(dummy_input[i])){
-//std::cout << "NOT A DIGIT: char[" << i << "] = " << dummy_input[i] << std::endl;
+		if(!std::isdigit(dummy_input[i]))
 			 exit(1);
-		}
 	timestamp = std::stoi(dummy_input);
 	if(timestamp < current_timestamp) exit(1);
 	update_time(timestamp); // NOT YET IMPLEMENTED
-//std::cout << "...got timestamp...\n";
 	
 	// Get client_name
 	std::cin >> dummy_input;
 	if(std::cin.eof()) exit(1);
 	for(int i = 0; i < dummy_input.size(); i++)
-		if(!(std::isalnum(dummy_input[i]) || dummy_input[i] == '_')){
-//std::cout << "NOT ALNUM: char[" << i << "] = " << dummy_input[i] << std::endl;
+		if(!(std::isalnum(dummy_input[i]) || dummy_input[i] == '_'))
 			exit(1);
-		}
 	client_name = dummy_input;
-//std::cout << "...got clientname...\n";
 
 	// Get buy_or_sell
 	std::cin >> dummy_input;
@@ -140,7 +139,6 @@ bool market_maker::get_input(){
 		action = SELL;
 	else
 		exit(1);
-//std::cout << "...got buy/sell...\n";
 
 	// Get equity_symbol
 	std::cin >> dummy_input;
@@ -151,7 +149,6 @@ bool market_maker::get_input(){
 				|| dummy_input[i] == '.')) 
 			exit(1);
 	equity_symbol = dummy_input;
-//std::cout << "...got equity symbol...\n";
 	
 	// Get price
 	std::cin >> dummy_symbol;
@@ -162,7 +159,6 @@ bool market_maker::get_input(){
 	for(int i = 0; i < dummy_input.size(); i++)
 		if(!std::isdigit(dummy_input[i])) exit(1);
 	price = std::stoi(dummy_input);
-//std::cout << "...got price...\n";
 	
 	// Get quantity
 	std::cin >> dummy_symbol;
@@ -173,19 +169,14 @@ bool market_maker::get_input(){
 	for(int i = 0; i < dummy_input.size(); i++)
 		if(!std::isdigit(dummy_input[i])) exit(1);
 	quantity = std::stoi(dummy_input);
-//std::cout << "...got quantity...\n";
 
 	// Get duration
 	std::cin >> dummy_input;
 	if(std::cin.eof()) exit(1);
 	for(int i = 0; i < dummy_input.size(); i++)
-		if(!std::isdigit(dummy_input[i])
-			 && !(i == 0 && dummy_input[i] == '-')){
-//std::cout << "REACHED A NON-DIGIT\n";
+		if(!std::isdigit(dummy_input[i]) && !(i == 0 && dummy_input[i] == '-'))
 			 exit(1);
-		}
 	duration = std::stoi(dummy_input);
-//std::cout << duration << std::endl;
 
 	string e = equity_symbol;
 	if(placed_orders.find(e) == placed_orders.end())
@@ -227,7 +218,6 @@ void market_maker::company_group::clear_stocks(int current_timestamp){
 // The workhorse
 void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, string c,
 																								int p, int q, int d){
-//std::cout << "--IN process_stock--\n";
 	stock current_stock = stock(id, t, c, p, q, d);
 	
 	std::deque<stock>* offer_list_dummy_pointer = 0;
@@ -237,55 +227,30 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 	
 	std::deque<stock>& offer_list = *offer_list_dummy_pointer;
 
-//if(offer_list.empty()) std::cout << "offer_list empty\n";
-//std::cout << "current_stock quantity = " << current_stock.quantity << std::endl;
-//std::cout << "...just before while loop...\n";
 	while(!offer_list.empty() && current_stock.quantity > 0){
-//std::cout << "...in while loop...\n";
 		// If we're looking to buy/sell more than (slash as much as) they want 
 		// to sell/buy
 		stock& trade = offer_list.front();
 		
-		if(a == BUY){
-			if(trade.price > current_stock.price){
-std::cout << "BUYING:\ncurrent_stock.price:\t" << current_stock.price << std::endl;
-std::cout << "trade.price\t" << trade.price << std::endl;
-std::cout << "breaking.\n";
-				 break;
-			}
-		}
-		else{
-			if(trade.price < current_stock.price){
-std::cout << "SELLING:\ncurrent_stock.price:\t" << current_stock.price << std::endl;
-std::cout << "trade.price\t" << trade.price << std::endl;
-std::cout << "breaking.\n";
-				break;
-			}
-		}
+		if(a == BUY)
+			if(trade.price > current_stock.price) break;
+		else
+			if(trade.price < current_stock.price) break;
 
-std::cout << "Client " << current_stock.client;
-if(a == BUY) std::cout << " buying ";
-else std::cout << " selling ";
-		
 		// If we're going to clear out the outstanding offer in the trade
 		if(current_stock.quantity >= trade.quantity){
+			if(market_maker::verbose_flag) print_verbose();
 			commission += (trade.quantity*trade.price)/100;
 			commission += (trade.quantity*trade.price)/100;
-std::cout << trade.quantity << " shares of " << equity_symbol << " to " << trade.client << " @ $";
-std::cout << trade.price << "/share for a total commission of $" << 2*((int)(trade.quantity*trade.price)/100);
-std::cout << std::endl;
 			current_stock.quantity -= trade.quantity;
 			stocks_traded.push_back(trade);
 			offer_list.pop_front();
 		}
 		// Or, if we're going to be cleared out by the trade
 		else{
+			if(market_maker::verbose_flag) print_verbose();
 			commission += (trade.price*current_stock.quantity)/100;
 			commission +=	(trade.price*current_stock.quantity)/100;
-std::cout << current_stock.quantity << " shares of " << equity_symbol << " to " << trade.client << " @ $";
-std::cout << trade.price << "/share for a total commission of $" << 
-					2*((int)(current_stock.quantity*trade.price)/100);
-std::cout << std::endl;
 			trade.quantity -= current_stock.quantity;
 			stocks_traded.push_back(current_stock);
 			current_stock.quantity = 0;
@@ -293,16 +258,15 @@ std::cout << std::endl;
 	}
 	
 	// At this point, we should have matched our current_stock with all 
-	// possible trades.
+	// possible trades. Now it gets inserted into our data structures.
 	
 	// IOC ORDERS
 	if(current_stock.duration == 0) return;
-	
+
+	// Non-IOC ORDERS	
 	if(current_stock.quantity > 0){
 		//INSERT CURRENT_STOCK INTO OFFER_LIST
-		//..i think?...(need comp)
 		if(a == BUY){
-//			auto index = std::lower_bound(buy_offers.begin(), buy_offers.end(), current_stock, buy_comp());
 			auto index = buy_offers.begin();
 			while(index != buy_offers.end()){
 				if(BUY_COMP(current_stock, *index)) break;
@@ -311,13 +275,11 @@ std::cout << std::endl;
 			buy_offers.insert(index, current_stock);
 		}
 		else{
-//			auto index = std::lower_bound(sell_offers.begin(), sell_offers.end(), current_stock, sell_comp);
 			auto index = sell_offers.begin();
 			while(index != sell_offers.end()){
 				if(SELL_COMP(current_stock, *index)) break;
 				index++;
 			}
-		
 			sell_offers.insert(index, current_stock);
 		}
 	}
