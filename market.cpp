@@ -12,6 +12,7 @@ using std::string;
 
 class market_maker{
 	public:
+	market_maker();
 	
 	// Each one of these structures will hold one particular type of equity, in a
 	// vector of "stocks"
@@ -61,9 +62,9 @@ class market_maker{
 		std::vector<stock> stocks_traded;
 
 		void clear_stocks(int current_timestamp);
-		void process_stock(buy_or_sell a, int id, int t, 
-											 string c, int p, int q, int d);
-
+		void process_stock(buy_or_sell a, int id, int t, string c, int p, int q, int d);
+		void print_verbose(string buyer, string seller,	unsigned int p, unsigned int q);
+		
 		company_group(string sym) : equity_symbol(sym) {};
 		// REMOVE BEFORE TURNING IN
 		company_group() {std::cout << "DEFAULT CONSTRUCTOR REACHED: YOU HAVE AN ERROR\n";};
@@ -87,17 +88,28 @@ class market_maker{
 	void print_midpoint(){}; // NOT YET IMPLEMENTED
 	
 	static unsigned int commission;
+	static unsigned int shares_traded;
+	static unsigned int money_transferred;
+	static unsigned int completed_trades;
 	bool get_input();
 	void update_time(int new_timestamp);
+	void end_of_day();
 	int current_timestamp;
 	unsigned int current_id;
 };
 
 unsigned int market_maker::commission = 0;
+unsigned int market_maker::shares_traded = 0;
+unsigned int market_maker::completed_trades = 0;
+unsigned int market_maker::money_transferred = 0;
 bool market_maker::verbose_flag = false;
 
 market_maker::market_maker() : current_id(0), current_timestamp(0){
-	market_maker::verbose_flag = true; 
+	market_maker::verbose_flag = true;
+	market_maker::commission = 0;
+	market_maker::shares_traded = 0;
+	market_maker::completed_trades = 0;
+	market_maker::money_transferred = 0;
 };
 
 // Process a line of input - returns false if we're of output, true otherwise
@@ -215,6 +227,35 @@ void market_maker::company_group::clear_stocks(int current_timestamp){
 			sell_offers.erase(sell_offers.begin() + i);
 }
 
+void market_maker::company_group::print_verbose(string buyer, string seller,
+																								unsigned int p, unsigned int q){
+	std::cout << buyer << " purchased " << q << " shares of " << equity_symbol
+						<< " from " << seller << " for $" << p << "/share\n";
+}
+void market_maker::print_medians(){
+	for(auto i = placed_orders.begin(); i != placed_orders.end(); i++){
+		if(i->stocks_traded.empty()) continue;
+		double median;
+		int size = i->stocks_traded.size();
+		if(size % 2)
+			median = i->stocks_traded[(int)size/2];
+		else
+			median = (i->stocks_traded[size/2] + i->stocks_traded[(int)(size-1)/2])/2;
+		std::cout << "Median match price of " << equity_symbol << " at time " 
+							<< current_timestamp << " is $" << median << std::endl;
+	}
+
+}
+
+void market_maker::end_of_day(){
+	std::cout << "---End of Day---\n";
+	std::cout << "Commission Earnings: $" << commission << std::endl;
+	std::cout << "Total Amount of Money Transferred: $" 
+						<< money_transferred << std::endl;
+	std::cout << "Number of Completed Trades: " << completed_trades << std::endl;
+	std::cout << "Number of Shares Traded: " << shares_traded << std::endl;
+}
+
 // The workhorse
 void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, string c,
 																								int p, int q, int d){
@@ -232,29 +273,53 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 		// to sell/buy
 		stock& trade = offer_list.front();
 		
-		if(a == BUY)
-			if(trade.price > current_stock.price) break;
-		else
-			if(trade.price < current_stock.price) break;
+		if(a == BUY){
+			if(trade.price > current_stock.price)
+				 break;
+		}
+		else{
+			if(trade.price < current_stock.price)
+				 break;		
+		}
 
 		// If we're going to clear out the outstanding offer in the trade
 		if(current_stock.quantity >= trade.quantity){
-			if(market_maker::verbose_flag) print_verbose();
-			commission += (trade.quantity*trade.price)/100;
-			commission += (trade.quantity*trade.price)/100;
+			if(market_maker::verbose_flag){
+				if(a == BUY) 
+					print_verbose(current_stock.client, trade.client, trade.price, trade.quantity);
+				else
+					print_verbose(trade.client, current_stock.client, trade.price, trade.quantity);
+			}
+
+			commission += 2*((int)(trade.quantity*trade.price)/100);
+			money_transferred += trade.price*trade.quantity;
+			shares_traded += trade.quantity;
+
 			current_stock.quantity -= trade.quantity;
 			stocks_traded.push_back(trade);
+			
 			offer_list.pop_front();
 		}
 		// Or, if we're going to be cleared out by the trade
 		else{
-			if(market_maker::verbose_flag) print_verbose();
-			commission += (trade.price*current_stock.quantity)/100;
-			commission +=	(trade.price*current_stock.quantity)/100;
+			if(market_maker::verbose_flag){
+				if(a == BUY) 
+					print_verbose(current_stock.client, trade.client, trade.price, current_stock.quantity);
+				else
+					print_verbose(trade.client, current_stock.client, trade.price, current_stock.quantity);
+			}
+
+			commission += 2*((int)(trade.price*current_stock.quantity)/100);
+			money_transferred += trade.price*current_stock.quantity;
+			shares_traded += current_stock.quantity;
+
 			trade.quantity -= current_stock.quantity;
 			stocks_traded.push_back(current_stock);
+			
 			current_stock.quantity = 0;
 		}
+		
+		completed_trades++;
 	}
 	
 	// At this point, we should have matched our current_stock with all 
@@ -288,6 +353,7 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 int main(){
 	market_maker market;
 	while(market.get_input()) {};
+	market.end_of_day();
 	return 0;
 }
 
