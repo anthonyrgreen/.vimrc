@@ -2,7 +2,6 @@
 #include <deque>
 #include <string>
 #include <vector>
-#include <unordered_map>
 #include <map>
 #include <stdlib.h>
 
@@ -11,66 +10,73 @@ enum buy_or_sell{BUY, SELL};
 using std::string;
 
 class market_maker{
-	public:
-	market_maker();
-	
 	// Each one of these structures will hold one particular type of equity, in a
 	// vector of "stocks"
 	class company_group{
-		public:
-		string equity_symbol;
+		// Structure for holding individual orders
 		struct stock{
 			stock(unsigned int id, unsigned int t, string c, 
 						 unsigned int p, unsigned int q, int d) : 
-						ID(id), time(t), client(c), 
+						super(x), ID(id), time(t), client(c), 
 						price(p), quantity(q), duration(d) {};
-			unsigned int ID;
-			unsigned int time;
+			unsigned int ID, time, price, quantity;
 			string client;
-//			buy_or_sell action;
-			unsigned int price;
-			unsigned int quantity;
 			int duration;
 		};
-
-		public:
+		
 		// Comparators
 		struct sell_comp{
 			bool operator()(const stock& lhs, const stock& rhs) const{
-				if(lhs.price < rhs.price) return true;
-				else if(lhs.price > rhs.price) return false;
-				else if(lhs.ID < rhs.ID) return true;
-				else if(lhs.ID > rhs.ID) return false;
-				else return false; // Should never be hit.
+				if(lhs.price < rhs.price || (lhs.price == rhs.price && lhs.ID < rhs.ID))
+					return true;
+				else return false;
 			}
 		} SELL_COMP;
 		struct buy_comp{
 			bool operator()(const stock& lhs, const stock& rhs) const{
-				if(lhs.price > rhs.price) return true;
-				else if(lhs.price < rhs.price) return false;
-				else if(lhs.ID < rhs.ID) return true;
-				else if(lhs.ID > rhs.ID) return false;
-				else return false; // Should never be hit.		
+				if(lhs.price > rhs.price || (lhs.price == rhs.price && lhs.ID < rhs.ID)) 
+					return true;
+				else return false;	
 			}
 		} BUY_COMP;
-		
-		// THE LIST OF STOCKS 
+
+		// Data members:		
+		market_maker& super;
+		string equity_symbol;
+		unsigned int amount_spent, num_traded;
+
+		// Outstanding orders
 		// Shall always be sorted lowest->greatest by stock price
 		std::deque<company_group::stock> sell_offers;
 		// Shall always be sorted greatest->lowest, by stock price
 		std::deque<company_group::stock> buy_offers;
+		// Completed orders
 		std::vector<stock> stocks_traded;
 
+		// Methods
 		void clear_stocks(unsigned int current_timestamp);
-		void process_stock(buy_or_sell a, int id, int t, string c, int p, int q, int d);
-		void print_verbose(string buyer, string seller,	unsigned int p, unsigned int q);
+		void process_stock(buy_or_sell a, int id, int t, 
+											 string c, int p, int q, int d);
+		void print_verbose(string buyer, string seller,	
+											 unsigned int p, unsigned int q);
 		void print_median();
-		
-		company_group(string sym) : equity_symbol(sym) {};
+		void print_midpoint();
+
+		public:	
+		// Constructors
+		company_group(market_maker& x, string sym) : super(x), equity_symbol(sym),
+																								 amount_spent(0), num_traded(0) {};
 		// REMOVE BEFORE TURNING IN
 		company_group() {std::cout << "DEFAULT CONSTRUCTOR REACHED: YOU HAVE AN ERROR\n";};
 	};
-	
+	struct client{
+		client() {};
+		client(string client_name) : name(client_name), stocks_bought(0)
+																 stocks_sold(0), value_traded(0) {};
+		strint name;
+		unsigned int stocks_bought, stocks_sold, value_traded;
+	};
+
 	// Comparator
 	struct string_comp{
 		bool operator()(const string& lhs, const string& rhs) const{
@@ -79,14 +85,17 @@ class market_maker{
 	};
 
 	// There will be only one company_group per equity_symbol
-	std::map <string, market_maker::company_group, string_comp> placed_orders;
-	
-	// Flags
-	bool median_flag, midpoint_flag;
-	static bool verbose_flag;
+	std::map <string, company_group, string_comp> placed_orders;
+	// Stupid fucking --transfers option requires that I make this stupid map
+	std::map <string, client, string_comp> clients;
 
-	void print_medians(); // NOT YET IMPLEMENTED
-	void print_midpoints(){}; // NOT YET IMPLEMENTED
+	// Flags
+	static bool verbose_flag, median_flag, midpoint_flag, transfers_flag;
+
+	market_maker();	
+	void print_medians();
+	void print_midpoints();
+	void print_transfers();
 	
 	static unsigned int commission;
 	static unsigned int shares_traded;
@@ -104,10 +113,16 @@ unsigned int market_maker::shares_traded = 0;
 unsigned int market_maker::completed_trades = 0;
 unsigned int market_maker::money_transferred = 0;
 unsigned int market_maker::current_timestamp = 0;
+bool market_maker::median_flag = false;
+bool market_maker::midpoint_flag = false;
 bool market_maker::verbose_flag = false;
+bool market_maker::transfers_flag = false;
 
 market_maker::market_maker() : current_id(0) {
 	market_maker::verbose_flag = true;
+	market_maker::median_flag = true;
+	market_maker::midpoint_flag = true;
+	market_maker::transfers_flag = true;
 	market_maker::commission = 0;
 	market_maker::shares_traded = 0;
 	market_maker::completed_trades = 0;
@@ -195,7 +210,12 @@ bool market_maker::get_input(){
 
 	string e = equity_symbol;
 	if(placed_orders.find(e) == placed_orders.end())
-		placed_orders.insert(std::pair<string, company_group>(e, company_group(e)));
+		placed_orders.insert(std::pair<string, company_group>(e, company_group(*this, e)));
+	
+	// Stupid goddamned --transfers option
+	if(transfers_flag)
+		if(clients.find(client_name) == clients.end())
+			clients.insert(std::pair<string, client>(client_name, client(client_name)));
 	
 	// Hand the reigns over to that stock processor, yo
 	placed_orders[e].process_stock(action, current_id, timestamp, client_name, 
@@ -230,6 +250,7 @@ void market_maker::company_group::clear_stocks(unsigned int current_timestamp){
 			sell_offers.erase(sell_offers.begin() + i);
 }
 
+// PRINTING FUNCTIONS
 void market_maker::company_group::print_verbose(string buyer, string seller,
 																								unsigned int p, unsigned int q){
 	std::cout << buyer << " purchased " << q << " shares of " << equity_symbol
@@ -245,16 +266,36 @@ void market_maker::print_midpoints(){
 }
 void market_maker::company_group::print_median(){
 		if(stocks_traded.empty()) return;
-		double median;
+		
+	double median;
 		int size = stocks_traded.size();
 		if(size % 2)
 			median = stocks_traded[(int)size/2].price;
-		else
-			median = (stocks_traded[size/2].price + stocks_traded[(int)(size-1)/2].price)/2;
+		else{
+			int left = stocks_traded[(int)((size - 1) / 2)].price;
+			int right = stocks_traded[size / 2].price;
+			median = (left + right)/2;
+		}
 		std::cout << "Median match price of " << equity_symbol << " at time " 
-							<< market_maker::current_timestamp << " is $" << median << std::endl;
+							<< super.current_timestamp << " is $" << median << std::endl;
 }
-
+void market_maker::company_group::print_midpoint(){
+	if(buy_offers.empty() || sell_offers.empty()){
+		std::cout << "Midpoint of " << equity_symbol << " at time " 
+							<< current_timestamp << " is undefined" << std::endl;
+		return;
+	}
+	int midpoint = (buy_offers.front().price +  sell_offers.front().price) / 2;
+	std::cout << "Midpoint of " << equity_symbol << " at time " 
+						<< current_timestamp << " is $" << midpoint << std::endl;
+}
+void market_maker::print_transfers(){
+	for(auto i = clients.begin; i != clients.end(); i++){
+		client& dude = i->second;
+		std::cout << dude.name << " bought " << dude.stocks_bought << " and sold "
+							<< dude.stocks_sold << " for a net transfer of $" << dude.value_traded
+							<< std::endl;
+}
 void market_maker::end_of_day(){
 	std::cout << "---End of Day---\n";
 	std::cout << "Commission Earnings: $" << commission << std::endl;
@@ -262,18 +303,17 @@ void market_maker::end_of_day(){
 						<< money_transferred << std::endl;
 	std::cout << "Number of Completed Trades: " << completed_trades << std::endl;
 	std::cout << "Number of Shares Traded: " << shares_traded << std::endl;
+	if(verbose_flag) print_transfers();
 }
 
 // The workhorse
-void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, string c,
-																								int p, int q, int d){
+void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, 
+																								string c, int p, int q, int d){
 	stock current_stock = stock(id, t, c, p, q, d);
 	
 	std::deque<stock>* offer_list_dummy_pointer = 0;
-
 	if(a == BUY) offer_list_dummy_pointer = &sell_offers;
 	else offer_list_dummy_pointer = &buy_offers;
-	
 	std::deque<stock>& offer_list = *offer_list_dummy_pointer;
 
 	while(!offer_list.empty() && current_stock.quantity > 0){
@@ -289,41 +329,51 @@ void market_maker::company_group::process_stock(buy_or_sell a, int id, int t, st
 			if(trade.price < current_stock.price)
 				 break;		
 		}
-
+		
+		unsigned int quantity, value;
 		// If we're going to clear out the outstanding offer in the trade
 		if(current_stock.quantity >= trade.quantity){
-			if(market_maker::verbose_flag){
-				if(a == BUY) 
-					print_verbose(current_stock.client, trade.client, trade.price, trade.quantity);
-				else
-					print_verbose(trade.client, current_stock.client, trade.price, trade.quantity);
-			}
+			quantity = trade.quantity;
+			value = trade.price * trade.quantity;
+		}
+		// Or if we're going to be cleared out in the trade
+		else{
+			quantity = current_stock.quantity;
+			value = trade.price * current_stock.quantity;
+		}
 
-			commission += 2*((int)(trade.quantity*trade.price)/100);
-			money_transferred += trade.price*trade.quantity;
-			shares_traded += trade.quantity;
+		if(super.verbose_flag){
+			if(a == BUY)
+				print_verbose(current_stock.client, trade.client, 
+											trade.price, quantity);
+			else
+				print_verbose(trade.client, current_stock.client, 
+											trade.price, quantity);
+		}
+		if(transfers_flag){
+			super.clients[current_stock.client].value_traded += value;
+			if(a == BUY)
+				super.clients[current_stock.client].stocks_bought += quantity;
+			else
+				super.clients[current_stock.client].stocks_sold += quantity;
+		}
+		if(VWAP_flag){
+			num_traded += quantity;
+			amount_spent += value;
+		}
 
-			current_stock.quantity -= trade.quantity;
-			stocks_traded.push_back(trade);
+		commission += 2*((int)(value)/100);
+		money_transferred += value;
+		shares_traded += quantity;
 			
+		current_stock.quantity -= quantity;
+		
+		if(current_stock.quantity >= trade.quantity){
+			stocks_traded.push_back(trade);
 			offer_list.pop_front();
 		}
-		// Or, if we're going to be cleared out by the trade
 		else{
-			if(market_maker::verbose_flag){
-				if(a == BUY) 
-					print_verbose(current_stock.client, trade.client, trade.price, current_stock.quantity);
-				else
-					print_verbose(trade.client, current_stock.client, trade.price, current_stock.quantity);
-			}
-
-			commission += 2*((int)(trade.price*current_stock.quantity)/100);
-			money_transferred += trade.price*current_stock.quantity;
-			shares_traded += current_stock.quantity;
-
-			trade.quantity -= current_stock.quantity;
 			stocks_traded.push_back(current_stock);
-			
 			current_stock.quantity = 0;
 		}
 		
@@ -364,39 +414,6 @@ int main(){
 	market.end_of_day();
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*void market_maker::push_stock(string e, int t, string c, buy_or_sell a, 
-															int p, int q, int d)	
-	if(placed_orders.find(e) == placed_orders.end())
-		placed_orders.insert(std::pair<string, company_group>(e, company_group(e)));
-	placed_orders[e].process_stock(t, c, a, p, q, d);
-
-//	placed_orders[e].stock_list.emplace_back(t, c, a, p, q, d);
-
-std::cout << placed_orders[e].stock_list.back().time << " ";
-std::cout << placed_orders[e].stock_list.back().client << " ";
-if(placed_orders[e].stock_list.back().action == BUY) std::cout << "BUY ";
-else std::cout << "SELL ";
-std::cout << placed_orders[e].equity_symbol << " $";
-std::cout << placed_orders[e].stock_list.back().price << " #";
-std::cout << placed_orders[e].stock_list.back().quantity << " ";
-std::cout << placed_orders[e].stock_list.back().duration << "\n";
-}*/
-
-
-
 
 
 
