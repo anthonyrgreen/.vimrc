@@ -61,9 +61,10 @@ class market_maker{
 		std::deque<company_group::stock> buy_offers;
 		std::vector<stock> stocks_traded;
 
-		void clear_stocks(int current_timestamp);
+		void clear_stocks(unsigned int current_timestamp);
 		void process_stock(buy_or_sell a, int id, int t, string c, int p, int q, int d);
 		void print_verbose(string buyer, string seller,	unsigned int p, unsigned int q);
+		void print_median();
 		
 		company_group(string sym) : equity_symbol(sym) {};
 		// REMOVE BEFORE TURNING IN
@@ -84,17 +85,17 @@ class market_maker{
 	bool median_flag, midpoint_flag;
 	static bool verbose_flag;
 
-	void print_median(){}; // NOT YET IMPLEMENTED
-	void print_midpoint(){}; // NOT YET IMPLEMENTED
+	void print_medians(); // NOT YET IMPLEMENTED
+	void print_midpoints(){}; // NOT YET IMPLEMENTED
 	
 	static unsigned int commission;
 	static unsigned int shares_traded;
 	static unsigned int money_transferred;
 	static unsigned int completed_trades;
+	static unsigned int current_timestamp;
 	bool get_input();
-	void update_time(int new_timestamp);
+	void update_time(unsigned int new_timestamp);
 	void end_of_day();
-	int current_timestamp;
 	unsigned int current_id;
 };
 
@@ -102,14 +103,16 @@ unsigned int market_maker::commission = 0;
 unsigned int market_maker::shares_traded = 0;
 unsigned int market_maker::completed_trades = 0;
 unsigned int market_maker::money_transferred = 0;
+unsigned int market_maker::current_timestamp = 0;
 bool market_maker::verbose_flag = false;
 
-market_maker::market_maker() : current_id(0), current_timestamp(0){
+market_maker::market_maker() : current_id(0) {
 	market_maker::verbose_flag = true;
 	market_maker::commission = 0;
 	market_maker::shares_traded = 0;
 	market_maker::completed_trades = 0;
 	market_maker::money_transferred = 0;
+	market_maker::current_timestamp = 0;
 };
 
 // Process a line of input - returns false if we're of output, true otherwise
@@ -131,8 +134,8 @@ bool market_maker::get_input(){
 		if(!std::isdigit(dummy_input[i]))
 			 exit(1);
 	timestamp = std::stoi(dummy_input);
-	if(timestamp < current_timestamp) exit(1);
-	update_time(timestamp); // NOT YET IMPLEMENTED
+	if(timestamp < (int)current_timestamp) exit(1);
+	update_time((unsigned int)timestamp); // NOT YET IMPLEMENTED
 	
 	// Get client_name
 	std::cin >> dummy_input;
@@ -203,11 +206,11 @@ bool market_maker::get_input(){
 
 // Update time and print any median/midpoint options
 // Also, cleans out expired orders
-void market_maker::update_time(int new_timestamp){
+void market_maker::update_time(unsigned int new_timestamp){
 	if(new_timestamp == current_timestamp) return;
 	
-	if(median_flag) print_median();
-	if(midpoint_flag) print_midpoint();
+	if(median_flag) print_medians();
+	if(midpoint_flag) print_midpoints();
 	current_timestamp = new_timestamp;
 
 	// Clear stocks	
@@ -216,7 +219,7 @@ void market_maker::update_time(int new_timestamp){
 }
 
 // Goes through and checks the duration of each order, deleting as necessary
-void market_maker::company_group::clear_stocks(int current_timestamp){
+void market_maker::company_group::clear_stocks(unsigned int current_timestamp){
 	for(int i = 0; i < buy_offers.size(); i++)
 		if(buy_offers[i].duration != -1 
 			 && buy_offers[i].time + buy_offers[i].duration <= current_timestamp)
@@ -233,18 +236,23 @@ void market_maker::company_group::print_verbose(string buyer, string seller,
 						<< " from " << seller << " for $" << p << "/share\n";
 }
 void market_maker::print_medians(){
-	for(auto i = placed_orders.begin(); i != placed_orders.end(); i++){
-		if(i->stocks_traded.empty()) continue;
+	for(auto i = placed_orders.begin(); i != placed_orders.end(); i++)
+		i->second.print_median();
+}
+void market_maker::print_midpoints(){
+	for(auto i = placed_orders.begin(); i != placed_orders.end(); i++)
+		i->second.print_midpoint();
+}
+void market_maker::company_group::print_median(){
+		if(stocks_traded.empty()) return;
 		double median;
-		int size = i->stocks_traded.size();
+		int size = stocks_traded.size();
 		if(size % 2)
-			median = i->stocks_traded[(int)size/2];
+			median = stocks_traded[(int)size/2].price;
 		else
-			median = (i->stocks_traded[size/2] + i->stocks_traded[(int)(size-1)/2])/2;
+			median = (stocks_traded[size/2].price + stocks_traded[(int)(size-1)/2].price)/2;
 		std::cout << "Median match price of " << equity_symbol << " at time " 
-							<< current_timestamp << " is $" << median << std::endl;
-	}
-
+							<< market_maker::current_timestamp << " is $" << median << std::endl;
 }
 
 void market_maker::end_of_day(){
