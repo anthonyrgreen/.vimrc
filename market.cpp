@@ -61,6 +61,7 @@ class market_maker{
 											 unsigned int p, unsigned int q);
 		void print_median();
 		void print_midpoint();
+		void print_VWAP();
 
 		public:	
 		// Constructors
@@ -295,6 +296,9 @@ void market_maker::print_transfers(){
 		std::cout << dude.name << " bought " << dude.stocks_bought << " and sold "
 							<< dude.stocks_sold << " for a net transfer of $" << dude.value_traded
 							<< std::endl;
+}
+void market_maker::print_VWAP(){
+	num_traded
 }
 void market_maker::end_of_day(){
 	std::cout << "---End of Day---\n";
